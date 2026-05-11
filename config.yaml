@@ -1,0 +1,99 @@
+# Alpha因子挖掘系统配置文件
+
+data:
+  # 首选数据源
+  preferred_source: akshare
+  
+  # 降级数据源列表
+  fallback_sources: [tushare, baostock]
+  
+  # 本地缓存目录
+  cache_dir: ./data_cache
+  
+  # 数据时间范围
+  start_date: "2020-01-01"
+  end_date: "2024-12-31"
+  
+  # 股票池: 'all_a' 或具体代码列表
+  symbols: all_a
+  
+  # Tushare Token（如使用）
+  tushare_token: null
+
+factor:
+  # 因子表达式列表
+  expressions:
+    # 动量类
+    - "rank(ts_delta(close, 5))"
+    - "rank(ts_delta(close, 20))"
+    - "ts_zscore(return_1d, 20)"
+    
+    # 反转类
+    - "-rank(ts_mean(return_1d, 5))"
+    - "-rank(ts_mean(return_1d, 20))"
+    
+    # 波动率类
+    - "-rank(ts_std(return_1d, 20))"
+    - "rank(high_low_ratio)"
+    
+    # 成交量类
+    - "rank(ts_zscore(log_volume, 20))"
+    - "-rank(ts_corr(close, log_volume, 20))"
+    
+    # 量价关系
+    - "rank(close_vwap_diff)"
+    - "rank(ts_mean(close_vwap_diff, 5))"
+    
+    # 均线类
+    - "rank(ts_mean(close, 10) / close)"
+    - "rank(ts_mean(close, 20) / close)"
+    - "rank(ts_mean(close, 60) / close)"
+    - "rank(ts_mean(close, 5)) - rank(ts_mean(close, 20))"
+    
+    # 高低位置类
+    - "rank((close - ts_min(low, 20)) / (ts_max(high, 20) - ts_min(low, 20) + 0.001))"
+  
+  # 是否使用遗传编程自动生成因子
+  use_genetic_programming: false
+  
+  # 遗传编程参数
+  gp_population_size: 100
+  gp_generations: 10
+  gp_top_n: 5
+  
+  # 因子缓存
+  use_cache: true
+  cache_dir: ./factor_cache
+
+evaluation:
+  # 分组数量
+  n_groups: 5
+  
+  # 训练集比例
+  train_ratio: 0.8
+  
+  # 是否进行行业市值中性化
+  neutralize: false
+  
+  # 下一期收益率列名
+  forward_return_col: return_1d
+
+filter:
+  # 最小训练集ICIR
+  min_train_icir: 0.3
+  
+  # 最小测试集IC均值
+  min_test_ic_mean: 0.01
+  
+  # 最小训练集多空夏普比率
+  min_ls_sharpe_train: 0.5
+
+output:
+  # 结果输出目录
+  results_dir: ./results
+  
+  # 生成图表的Top因子数量
+  top_n_charts: 5
+  
+  # 是否保存详细结果
+  save_full_results: true
