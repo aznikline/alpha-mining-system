@@ -8,7 +8,7 @@ from typing import List, Optional
 import time
 
 from .base_adapter import BaseDataAdapter
-from utils import standardize_code
+from ..utils import standardize_code
 
 
 class AkshareAdapter(BaseDataAdapter):

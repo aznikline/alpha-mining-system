@@ -1,35 +1,34 @@
-# Alpha因子挖掘系统配置文件 v2.1
+# Alpha 因子挖掘系统 v3.0 配置文件
 
-# 市场配置
-market: a_share  # 'a_share' (A股) 或 'us' (美股)
+# 市场配置: a_share (A股) / us (美股)
+market: a_share
 
 # 数据配置
 data:
-  # 首选数据源 (None则按市场自动选择)
-  preferred_source: null
+  # 首选数据源: akshare / tushare / baostock / yfinance
+  preferred_source: null  # null 表示按市场自动选择
   
-  # 备选降级数据源
-  fallback_sources: null
+  # 备选数据源（自动降级顺序）
+  fallback_sources:
+    - tushare
+    - baostock
   
-  # 缓存目录
-  cache_dir: ./data_cache
+  # 时间范围
+  start_date: "2019-01-01"
+  end_date: "2024-12-31"
   
-  # 数据时间范围
-  start_date: "2020-01-01"
-  end_date: "2023-12-31"
-  
-  # 股票池 'all'表示全市场，或者指定代码列表
+  # 股票池: all 表示全市场，或指定代码列表如 ["000001.SZ", "000002.SZ"]
   symbols: all
   
-  # Tushare token (如果使用tushare)
+  # Tushare Token (如果使用tushare)
   tushare_token: null
 
 # 因子生成配置
 factor_generation:
-  # 生成模式: 'expression' / 'gplearn' / 'deep_alpha'
+  # 生成模式: expression (手动表达式) / gplearn (遗传编程) / deep_alpha (深度学习)
   mode: expression
   
-  # 手动表达式因子
+  # 模式 1: 手动表达式因子（默认）
   expressions:
     - "rank(ts_mean(close,20)/close)"
     - "rank(ts_delta(close,5))"
@@ -43,35 +42,47 @@ factor_generation:
     - "ts_skew(return_1d,20)"
     - "ts_kurt(return_1d,60)"
   
-  # 遗传编程参数
+  # 模式 2: 遗传编程 (gplearn)
   gp:
-    population_size: 100
-    generations: 15
+    population_size: 200
+    generations: 20
     top_n: 5
   
-  # 深度网络参数
+  # 模式 3: DeepAlpha 深度网络
   deep_alpha:
-    model_type: dnn  # 'dnn' / 'lstm' / 'transformer'
+    model_type: dnn  # dnn / lstm / transformer
     hidden_layers: [128, 64, 32]
     num_output_factors: 10
-    epochs: 30
+    epochs: 50
     sequence_length: 20
 
 # 评估配置
 evaluation:
+  # 分组数: 5 或 10
   n_groups: 5
+  
+  # 训练集比例
   train_ratio: 0.8
+  
+  # 是否启用行业市值中性化
   neutralize: false
+  
+  # 下一期收益率列名
   forward_return_col: return_1d
 
-# 筛选配置
+# 因子筛选条件
 filter:
-  min_train_icir: 0.3
-  min_test_ic_mean: 0.01
-  min_ls_sharpe_train: 0.5
+  min_train_icir: 0.5
+  min_test_ic_mean: 0.02
+  min_ls_sharpe_train: 1.0
 
 # 输出配置
 output:
+  # 结果目录
   results_dir: ./results
+  
+  # 是否保存图表
+  save_plots: true
+  
+  # 生成 Top N 因子图表
   top_n_charts: 5
-  save_full_results: true

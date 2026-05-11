@@ -9,7 +9,7 @@ import seaborn as sns
 from typing import Dict, List, Optional
 from pathlib import Path
 
-from utils import ensure_dir
+from .utils import ensure_dir
 
 # 设置中文字体支持
 plt.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans', 'WenQuanYi Micro Hei']

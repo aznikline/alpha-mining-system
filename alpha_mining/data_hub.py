@@ -9,14 +9,14 @@ from typing import List, Optional, Dict
 from pathlib import Path
 from datetime import datetime
 
-from data_adapters import (
+from .data_adapters import (
     BaseDataAdapter,
     AkshareAdapter,
     TushareAdapter,
     BaostockAdapter,
     YFinanceAdapter,
 )
-from utils import ensure_dir, save_parquet_cache, load_parquet_cache, standardize_code
+from .utils import ensure_dir, save_parquet_cache, load_parquet_cache, standardize_code
 
 
 class DataHub:
@@ -216,53 +216,70 @@ class DataHub:
         return pd.concat(all_data, ignore_index=True)
     
     def prepare_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        计算衍生特征列
+        """计算衍生特征列（调用模块级独立函数）"""
+        return prepare_features(df)
+
+
+# 模块级独立函数，供外部导入使用
+def prepare_features(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    计算衍生特征列
+    
+    Args:
+        df: 原始行情数据
+    
+    Returns:
+        添加衍生列后的DataFrame
+    """
+    df = df.copy()
+    
+    # 处理 MultiIndex 情况
+    if isinstance(df.index, pd.MultiIndex) and 'date' in df.index.names and 'code' in df.index.names:
+        df = df.reset_index()
+        has_multiindex = True
+    else:
+        has_multiindex = False
+    
+    # 价格数据按股票分组对齐
+    if 'date' in df.columns and 'code' in df.columns:
+        # 计算多期收益率
+        df = df.sort_values(['code', 'date'])
+        df['return_1d'] = df.groupby('code')['close'].pct_change()
+        df['return_5d'] = df.groupby('code')['close'].pct_change(5)
+        df['return_20d'] = df.groupby('code')['close'].pct_change(20)
         
-        Args:
-            df: 原始行情数据
+        # 波动率
+        df['volatility_20d'] = df.groupby('code')['return_1d'].transform(
+            lambda x: x.rolling(20, min_periods=10).std()
+        )
         
-        Returns:
-            添加衍生列后的DataFrame
-        """
-        df = df.copy()
+        # 高低价比率
+        df['high_low_ratio'] = df['high'] / df['low']
         
-        # 价格数据按股票分组对齐
-        if 'date' in df.columns and 'code' in df.columns:
-            # 计算多期收益率
-            df = df.sort_values(['code', 'date'])
-            df['return_1d'] = df.groupby('code')['close'].pct_change()
-            df['return_5d'] = df.groupby('code')['close'].pct_change(5)
-            df['return_20d'] = df.groupby('code')['close'].pct_change(20)
-            
-            # 波动率
-            df['volatility_20d'] = df.groupby('code')['return_1d'].transform(
-                lambda x: x.rolling(20, min_periods=10).std()
+        # VWAP相关
+        if 'amount' in df.columns and 'volume' in df.columns:
+            df['vwap'] = df['amount'] / df['volume'].replace(0, np.nan)
+            df['close_vwap_diff'] = (df['close'] - df['vwap']) / df['vwap']
+        
+        # 成交量对数
+        df['log_volume'] = np.log(df['volume'] + 1)
+        
+        # 换手率均线
+        if 'turn' in df.columns:
+            df['turn_5d_avg'] = df.groupby('code')['turn'].transform(
+                lambda x: x.rolling(5, min_periods=3).mean()
             )
-            
-            # 高低价比率
-            df['high_low_ratio'] = df['high'] / df['low']
-            
-            # VWAP相关
-            if 'amount' in df.columns and 'volume' in df.columns:
-                df['vwap'] = df['amount'] / df['volume'].replace(0, np.nan)
-                df['close_vwap_diff'] = (df['close'] - df['vwap']) / df['vwap']
-            
-            # 成交量对数
-            df['log_volume'] = np.log(df['volume'] + 1)
-            
-            # 换手率均线
-            if 'turn' in df.columns:
-                df['turn_5d_avg'] = df.groupby('code')['turn'].transform(
-                    lambda x: x.rolling(5, min_periods=3).mean()
-                )
-            
-            # 市值代理
-            df['market_cap'] = df['close'] * 1e9
-            df['log_market_cap'] = np.log(df['market_cap'])
-            
-            # 行业分类补全
-            if 'group' not in df.columns:
-                df['group'] = 'unknown'
         
-        return df
+        # 市值代理
+        df['market_cap'] = df['close'] * 1e9
+        df['log_market_cap'] = np.log(df['market_cap'])
+        
+        # 行业分类补全
+        if 'group' not in df.columns:
+            df['group'] = 'unknown'
+    
+    # 恢复 MultiIndex
+    if has_multiindex:
+        df = df.set_index(['date', 'code']).sort_index()
+    
+    return df
