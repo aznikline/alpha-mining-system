@@ -1,5 +1,5 @@
 """
-Alpha因子挖掘系统 - 结果可视化
+Alpha因子挖掘系统 - 结果可视化 (v2.1)
 """
 import os
 import pandas as pd
@@ -11,14 +11,14 @@ from pathlib import Path
 
 from utils import ensure_dir
 
-# 设置中文字体
-plt.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans']
+# 设置中文字体支持
+plt.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans', 'WenQuanYi Micro Hei']
 plt.rcParams['axes.unicode_minus'] = False
 sns.set_style("whitegrid")
 
 
 class FactorVisualizer:
-    """因子结果可视化"""
+    """因子结果可视化器"""
     
     def __init__(self, output_dir: str = './results'):
         self.output_dir = ensure_dir(output_dir)
@@ -29,169 +29,201 @@ class FactorVisualizer:
         
         Args:
             result_df: 评估结果DataFrame
-            top_n: 生成前N个因子的详细图表
+            top_n: 生成前N个最优因子的详细图表
         """
-        # 排序（按ICIR降序）
-        sorted_df = result_df.sort_values('RankICIR_train', ascending=False)
+        if len(result_df) == 0:
+            print("[Visualizer] 无有效因子，跳过图表生成")
+            return
         
-        # 生成总体对比图表
+        # 按ICIR排序
+        sorted_df = result_df.sort_values('RankIC_IR_train', ascending=False)
+        
+        # 总体对比图
         self._generate_summary_chart(sorted_df)
         
-        # 生成Top因子详细图表
-        for i, (_, row) in enumerate(sorted_df.head(top_n).iterrows()):
-            print(f"  生成因子图表 [{i+1}/{top_n}]: {row['factor_expr'][:40]}...")
+        # Top因子详细图表
+        actual_top_n = min(top_n, len(sorted_df))
+        for i, (_, row) in enumerate(sorted_df.head(actual_top_n).iterrows()):
+            print(f"  生成因子图表 [{i+1}/{actual_top_n}]: {row['factor_name']}")
             self._generate_factor_detail_charts(row)
     
     def _generate_summary_chart(self, df: pd.DataFrame):
-        """生成因子总体对比图表"""
-        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+        """生成总体对比图表"""
+        fig = plt.figure(figsize=(16, 12))
+        gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
         
-        # 1. ICIR分布
-        ax = axes[0, 0]
-        icir_data = df['RankICIR_train'].dropna()
-        ax.hist(icir_data, bins=20, alpha=0.7, color='steelblue', edgecolor='black')
-        ax.axvline(y=0, color='red', linestyle='--', alpha=0.5)
-        ax.set_title('训练集RankICIR分布', fontsize=14, fontweight='bold')
-        ax.set_xlabel('RankICIR')
-        ax.set_ylabel('因子数量')
+        # 1. RankICIR分布
+        ax1 = fig.add_subplot(gs[0, 0])
+        icir_data = df['RankIC_IR_train'].dropna()
+        if len(icir_data) > 0:
+            ax1.hist(icir_data, bins=15, alpha=0.7, color='#2ecc71', edgecolor='black')
+            ax1.axvline(y=0, color='#e74c3c', linestyle='--', alpha=0.8)
+            ax1.axvline(y=0.3, color='#f39c12', linestyle='--', alpha=0.8, label='0.3阈值')
+            ax1.set_title('训练集RankIC_IR分布', fontsize=12, fontweight='bold')
+            ax1.set_xlabel('RankIC_IR')
+            ax1.set_ylabel('因子数量')
+            ax1.legend()
         
-        # 2. 训练集vs测试集IC均值
-        ax = axes[0, 1]
-        ax.scatter(df['RankIC_mean_train'], df['RankIC_mean_test'], 
-                   alpha=0.7, s=80, edgecolors='black')
-        ax.axvline(x=0, color='gray', linestyle='--', alpha=0.5)
-        ax.axhline(y=0, color='gray', linestyle='--', alpha=0.5)
-        ax.plot([-0.1, 0.1], [-0.1, 0.1], 'r--', alpha=0.5, label='y=x')
-        ax.set_title('训练集vs测试集RankIC均值', fontsize=14, fontweight='bold')
-        ax.set_xlabel('训练集RankIC均值')
-        ax.set_ylabel('测试集RankIC均值')
-        ax.legend()
+        # 2. 训练集vs测试集RankIC均值
+        ax2 = fig.add_subplot(gs[0, 1])
+        if 'RankIC_mean_train' in df.columns and 'RankIC_mean_test' in df.columns:
+            train_vals = df['RankIC_mean_train'].dropna()
+            test_vals = df['RankIC_mean_test'].dropna()
+            if len(train_vals) > 0 and len(test_vals) > 0:
+                min_val = min(train_vals.min(), test_vals.min(), -0.1)
+                max_val = max(train_vals.max(), test_vals.max(), 0.1)
+                ax2.scatter(train_vals, test_vals, alpha=0.7, s=80, 
+                           color='#3498db', edgecolors='black', zorder=5)
+                ax2.plot([min_val, max_val], [min_val, max_val], 'r--', alpha=0.5, label='y=x')
+                ax2.axvline(x=0, color='gray', linestyle='-', alpha=0.3)
+                ax2.axhline(y=0, color='gray', linestyle='-', alpha=0.3)
+                ax2.set_title('训练集vs测试集RankIC均值', fontsize=12, fontweight='bold')
+                ax2.set_xlabel('训练集RankIC均值')
+                ax2.set_ylabel('测试集RankIC均值')
+                ax2.legend()
         
         # 3. 夏普比率分布
-        ax = axes[1, 0]
-        sharpe_data = df['夏普比率_train'].dropna()
-        ax.hist(sharpe_data, bins=20, alpha=0.7, color='forestgreen', edgecolor='black')
-        ax.axvline(x=0, color='red', linestyle='--', alpha=0.5)
-        ax.set_title('训练集多空夏普比率分布', fontsize=14, fontweight='bold')
-        ax.set_xlabel('夏普比率')
-        ax.set_ylabel('因子数量')
+        ax3 = fig.add_subplot(gs[1, 0])
+        sharpe_data = df['夏普比率_train'].dropna() if '夏普比率_train' in df.columns else []
+        if len(sharpe_data) > 0:
+            ax3.hist(sharpe_data, bins=15, alpha=0.7, color='#9b59b6', edgecolor='black')
+            ax3.axvline(x=0.5, color='#e74c3c', linestyle='--', alpha=0.8, label='0.5阈值')
+            ax3.set_title('训练集多空夏普比率分布', fontsize=12, fontweight='bold')
+            ax3.set_xlabel('夏普比率')
+            ax3.set_ylabel('因子数量')
+            ax3.legend()
         
-        # 4. 年化收益率vs最大回撤
-        ax = axes[1, 1]
-        scatter = ax.scatter(df['最大回撤_train'].abs(), df['年化收益率_train'],
-                           c=df['夏普比率_train'], cmap='viridis',
-                           s=80, alpha=0.7, edgecolors='black')
-        plt.colorbar(scatter, ax=ax, label='夏普比率')
-        ax.set_title('风险收益散点图', fontsize=14, fontweight='bold')
-        ax.set_xlabel('最大回撤(绝对值)')
-        ax.set_ylabel('年化收益率')
+        # 4. 收益-回撤散点图
+        ax4 = fig.add_subplot(gs[1, 1])
+        if '年化收益率_train' in df.columns and '最大回撤_train' in df.columns:
+            ret = df['年化收益率_train'].dropna()
+            dd = df['最大回撤_train'].dropna()
+            if len(ret) > 0 and len(dd) > 0:
+                sharpe = df.loc[ret.index, '夏普比率_train'].dropna()
+                scatter = ax4.scatter(dd.abs(), ret, c=sharpe, cmap='viridis', 
+                                     s=100, alpha=0.7, edgecolors='black')
+                ax4.set_xlabel('最大回撤(绝对值)')
+                ax4.set_ylabel('年化收益率')
+                ax4.set_title('风险收益散点图', fontsize=12, fontweight='bold')
+                plt.colorbar(scatter, ax=ax4, label='夏普比率')
         
-        plt.tight_layout()
-        plt.savefig(os.path.join(self.output_dir, 'factor_summary.png'), dpi=150, bbox_inches='tight')
+        plt.savefig(os.path.join(self.output_dir, 'factor_summary.png'), 
+                   dpi=150, bbox_inches='tight')
         plt.close()
-        print(f"  保存: factor_summary.png")
     
     def _generate_factor_detail_charts(self, row: pd.Series):
         """生成单个因子的详细图表"""
-        expr = row['factor_expr']
+        factor_name = row.get('factor_name', 'unknown')
+        safe_name = ''.join(c if c.isalnum() or c in '-_' else '_' for c in factor_name)
         
-        # 生成文件名（简化表达式）
-        safe_name = ''.join(c if c.isalnum() else '_' for c in expr[:50])
-        safe_name = safe_name[:80]
+        fig = plt.figure(figsize=(16, 12))
+        gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
         
-        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
-        
-        # 1. IC时间序列
-        ax = axes[0, 0]
-        ic_series = row['_rank_ic_series']
-        if isinstance(ic_series, pd.Series) and len(ic_series) > 0:
-            ic_series.rolling(20, min_periods=5).mean().plot(ax=ax, linewidth=2, label='20日滚动均值')
-            ax.axhline(y=ic_series.mean(), color='red', linestyle='--', label=f'均值: {ic_series.mean():.3f}')
-            ax.fill_between(ic_series.index, 
-                          ic_series.mean() - 2*ic_series.std(),
-                          ic_series.mean() + 2*ic_series.std(),
-                          alpha=0.2, color='gray', label='±2σ')
-            ax.set_title(f'RankIC时间序列\nICIR: {row["RankICIR_train"]:.2f}', fontsize=12, fontweight='bold')
-            ax.set_ylabel('RankIC')
-            ax.legend()
-            ax.tick_params(axis='x', rotation=45)
+        # 1. IC时间序列 + 滚动均值
+        ax1 = fig.add_subplot(gs[0, 0])
+        rank_ic = row.get('_rank_ic_series', pd.Series(dtype=float))
+        if isinstance(rank_ic, pd.Series) and len(rank_ic) > 0:
+            rank_ic_rolling = rank_ic.rolling(20, min_periods=5).mean()
+            ax1.plot(rank_ic_rolling.index, rank_ic_rolling.values, 
+                    linewidth=2, color='#2980b9', label='20日滚动均值')
+            ax1.axhline(y=rank_ic.mean(), color='#e74c3c', linestyle='--', 
+                       linewidth=2, label=f'均值: {rank_ic.mean():.3f}')
+            ax1.fill_between(rank_ic.index,
+                           rank_ic.mean() - 2*rank_ic.std(),
+                           rank_ic.mean() + 2*rank_ic.std(),
+                           alpha=0.2, color='gray', label='±2σ区间')
+            ax1.set_title(f'{factor_name} - RankIC时间序列', fontsize=12, fontweight='bold')
+            ax1.set_ylabel('RankIC')
+            ax1.tick_params(axis='x', rotation=45)
+            ax1.legend()
         
         # 2. 多空净值曲线
-        ax = axes[0, 1]
-        ls_returns = row['_ls_returns']
+        ax2 = fig.add_subplot(gs[0, 1])
+        ls_returns = row.get('_ls_returns', pd.Series(dtype=float))
         if isinstance(ls_returns, pd.Series) and len(ls_returns) > 0:
-            nav = (1 + ls_returns).cumprod()
-            nav.plot(ax=ax, linewidth=2, color='darkblue')
-            ax.set_title(f'多空组合净值曲线\n年化: {row["年化收益率_train"]:.1%} | 夏普: {row["夏普比率_train"]:.2f}', 
-                       fontsize=12, fontweight='bold')
-            ax.set_ylabel('净值')
-            ax.tick_params(axis='x', rotation=45)
+            nav = (1 + ls_returns.dropna()).cumprod()
+            ax2.plot(nav.index, nav.values, linewidth=2.5, color='#27ae60')
+            ax2.axhline(y=1, color='gray', linestyle='--', alpha=0.5)
+            ax2.set_title(f'{factor_name} - 多空组合净值曲线', fontsize=12, fontweight='bold')
+            ax2.set_ylabel('净值')
+            ax2.tick_params(axis='x', rotation=45)
+            
+            # 添加绩效标签
+            ann = f"年化: {row.get('年化收益率_train', 0):.1%}\n" \
+                 f"夏普: {row.get('夏普比率_train', 0):.2f}\n" \
+                 f"回撤: {row.get('最大回撤_train', 0):.1%}"
+            ax2.text(0.02, 0.98, ann, transform=ax2.transAxes,
+                    verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
         
         # 3. 分组累计收益
-        ax = axes[1, 0]
-        group_returns = row['_group_returns']
+        ax3 = fig.add_subplot(gs[1, 0])
+        group_returns = row.get('_group_returns', pd.DataFrame())
         if isinstance(group_returns, pd.DataFrame) and len(group_returns) > 0:
-            group_nav = (1 + group_returns).cumprod()
-            colors = plt.cm.RdYlGn(np.linspace(0, 1, len(group_nav.columns)))
-            for i, col in enumerate(sorted(group_nav.columns)):
-                label = f'Group {col+1}' if col == 0 else f'Group {col+1}' if col == len(group_nav.columns)-1 else f'Group {col+1}'
-                group_nav[col].plot(ax=ax, linewidth=2, color=colors[i], label=label)
-            ax.set_title('分组累计净值曲线', fontsize=12, fontweight='bold')
-            ax.set_ylabel('净值')
-            ax.legend()
-            ax.tick_params(axis='x', rotation=45)
+            colors = plt.cm.RdYlGn(np.linspace(0, 1, len(group_returns.columns)))
+            for i, q in enumerate(sorted(group_returns.columns)):
+                group_nav = (1 + group_returns[q].dropna()).cumprod()
+                ax3.plot(group_nav.index, group_nav.values, linewidth=1.5, 
+                        color=colors[i], label=f'Group {q+1}')
+            ax3.axhline(y=1, color='gray', linestyle='--', alpha=0.5)
+            ax3.set_title(f'{factor_name} - 分组累计收益对比', fontsize=12, fontweight='bold')
+            ax3.set_ylabel('净值')
+            ax3.legend(loc='upper left', fontsize=9)
+            ax3.tick_params(axis='x', rotation=45)
         
-        # 4. IC热力图（月度）
-        ax = axes[1, 1]
-        if isinstance(ic_series, pd.Series) and len(ic_series) > 0:
-            ic_df = ic_series.to_frame('ic')
+        # 4. 月度IC热力图
+        ax4 = fig.add_subplot(gs[1, 1])
+        if isinstance(rank_ic, pd.Series) and len(rank_ic) > 0:
+            ic_df = rank_ic.to_frame('ic')
             ic_df['year'] = ic_df.index.year
             ic_df['month'] = ic_df.index.month
             ic_pivot = ic_df.pivot_table(index='year', columns='month', values='ic', aggfunc='mean')
             
-            sns.heatmap(ic_pivot, cmap='RdYlGn', center=0, annot=True, fmt='.2f', ax=ax)
-            ax.set_title('月度RankIC均值热力图', fontsize=12, fontweight='bold')
+            sns.heatmap(ic_pivot, cmap='RdYlGn', center=0, annot=True, fmt='.2f',
+                       ax=ax4, cbar_kws={'label': 'RankIC'}, annot_kws={'size': 8})
+            ax4.set_title(f'{factor_name} - 月度RankIC均值热力图', fontsize=12, fontweight='bold')
+            ax4.set_xlabel('月份')
+            ax4.set_ylabel('年份')
         
-        plt.suptitle(f'因子分析报告: {expr[:60]}', fontsize=14, fontweight='bold', y=1.02)
-        plt.tight_layout()
-        plt.savefig(os.path.join(self.output_dir, f'factor_{safe_name}.png'), dpi=150, bbox_inches='tight')
+        plt.savefig(os.path.join(self.output_dir, f'factor_{safe_name}_detail.png'), 
+                   dpi=150, bbox_inches='tight')
         plt.close()
     
     def print_summary(self, result_df: pd.DataFrame):
         """打印因子评估摘要"""
-        print("\n" + "="*80)
-        print("因子挖掘结果摘要")
-        print("="*80)
+        print("\n" + "=" * 80)
+        print("Alpha因子挖掘结果摘要")
+        print("=" * 80)
         
-        sorted_df = result_df.sort_values('RankICIR_train', ascending=False)
+        if len(result_df) == 0:
+            print("\n无有效因子结果")
+            return
+        
+        sorted_df = result_df.sort_values('RankIC_IR_train', ascending=False)
         
         print(f"\n总因子数: {len(result_df)}")
-        print(f"有效因子数: {(result_df['RankICIR_train'] > 0).sum()}")
-        print(f"优秀因子数(ICIR>0.5): {(result_df['RankICIR_train'] > 0.5).sum()}")
+        valid_icir = (result_df['RankIC_IR_train'] > 0).sum()
+        good_icir = (result_df['RankIC_IR_train'] > 0.3).sum()
+        excellent_icir = (result_df['RankIC_IR_train'] > 0.5).sum()
+        print(f"ICIR > 0因子数: {valid_icir} ({valid_icir/len(result_df):.1%})")
+        print(f"ICIR > 0.3因子数: {good_icir} ({good_icir/len(result_df):.1%})")
+        print(f"ICIR > 0.5因子数: {excellent_icir} ({excellent_icir/len(result_df):.1%})")
         
-        print("\n" + "-"*80)
-        print("Top 10 因子 (按训练集ICIR排序):")
-        print("-"*80)
+        print("\n" + "-" * 80)
+        print("Top 10 因子 (按训练集RankIC_IR排序):")
+        print("-" * 80)
         
-        display_cols = ['factor_expr', 'RankIC_mean_train', 'RankICIR_train', 
+        display_cols = ['factor_name', 'RankIC_IR_train', 'RankIC_mean_train', 
                         'RankIC_mean_test', '夏普比率_train', '年化收益率_train', '换手率']
         display_df = sorted_df[display_cols].head(10).copy()
         
-        # 格式化显示
-        for col in ['RankIC_mean_train', 'RankIC_mean_test', '年化收益率_train']:
+        # 格式化
+        for col in ['RankIC_IR_train', 'RankIC_mean_train', 'RankIC_mean_test', '换手率']:
             if col in display_df.columns:
-                display_df[col] = display_df[col].apply(lambda x: f"{x:.3f}" if pd.notnull(x) else "")
-        
-        for col in ['RankICIR_train', '夏普比率_train']:
-            if col in display_df.columns:
-                display_df[col] = display_df[col].apply(lambda x: f"{x:.2f}" if pd.notnull(x) else "")
-        
-        if '换手率' in display_df.columns:
-            display_df['换手率'] = display_df['换手率'].apply(lambda x: f"{x:.3f}" if pd.notnull(x) else "")
-        
-        # 截断过长的表达式
-        display_df['factor_expr'] = display_df['factor_expr'].apply(lambda x: x[:50] + '...' if len(x) > 50 else x)
+                display_df[col] = display_df[col].apply(lambda x: f"{x:.3f}" if pd.notnull(x) else '')
+        if '夏普比率_train' in display_df.columns:
+            display_df['夏普比率_train'] = display_df['夏普比率_train'].apply(lambda x: f"{x:.2f}" if pd.notnull(x) else '')
+        if '年化收益率_train' in display_df.columns:
+            display_df['年化收益率_train'] = display_df['年化收益率_train'].apply(lambda x: f"{x:.1%}" if pd.notnull(x) else '')
         
         print(display_df.to_string(index=False))
-        
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)

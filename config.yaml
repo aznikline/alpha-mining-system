@@ -1,99 +1,77 @@
-# Alpha因子挖掘系统配置文件
+# Alpha因子挖掘系统配置文件 v2.1
 
+# 市场配置
+market: a_share  # 'a_share' (A股) 或 'us' (美股)
+
+# 数据配置
 data:
-  # 首选数据源
-  preferred_source: akshare
+  # 首选数据源 (None则按市场自动选择)
+  preferred_source: null
   
-  # 降级数据源列表
-  fallback_sources: [tushare, baostock]
+  # 备选降级数据源
+  fallback_sources: null
   
-  # 本地缓存目录
+  # 缓存目录
   cache_dir: ./data_cache
   
   # 数据时间范围
   start_date: "2020-01-01"
-  end_date: "2024-12-31"
+  end_date: "2023-12-31"
   
-  # 股票池: 'all_a' 或具体代码列表
-  symbols: all_a
+  # 股票池 'all'表示全市场，或者指定代码列表
+  symbols: all
   
-  # Tushare Token（如使用）
+  # Tushare token (如果使用tushare)
   tushare_token: null
 
-factor:
-  # 因子表达式列表
-  expressions:
-    # 动量类
-    - "rank(ts_delta(close, 5))"
-    - "rank(ts_delta(close, 20))"
-    - "ts_zscore(return_1d, 20)"
-    
-    # 反转类
-    - "-rank(ts_mean(return_1d, 5))"
-    - "-rank(ts_mean(return_1d, 20))"
-    
-    # 波动率类
-    - "-rank(ts_std(return_1d, 20))"
-    - "rank(high_low_ratio)"
-    
-    # 成交量类
-    - "rank(ts_zscore(log_volume, 20))"
-    - "-rank(ts_corr(close, log_volume, 20))"
-    
-    # 量价关系
-    - "rank(close_vwap_diff)"
-    - "rank(ts_mean(close_vwap_diff, 5))"
-    
-    # 均线类
-    - "rank(ts_mean(close, 10) / close)"
-    - "rank(ts_mean(close, 20) / close)"
-    - "rank(ts_mean(close, 60) / close)"
-    - "rank(ts_mean(close, 5)) - rank(ts_mean(close, 20))"
-    
-    # 高低位置类
-    - "rank((close - ts_min(low, 20)) / (ts_max(high, 20) - ts_min(low, 20) + 0.001))"
+# 因子生成配置
+factor_generation:
+  # 生成模式: 'expression' / 'gplearn' / 'deep_alpha'
+  mode: expression
   
-  # 是否使用遗传编程自动生成因子
-  use_genetic_programming: false
+  # 手动表达式因子
+  expressions:
+    - "rank(ts_mean(close,20)/close)"
+    - "rank(ts_delta(close,5))"
+    - "-rank(ts_std(return_1d,20))"
+    - "ts_zscore(volume,10)*-1"
+    - "rank(close_vwap_diff)"
+    - "rank(ts_mean(close,10)/close)-rank(ts_mean(close,60)/close)"
+    - "rank(high_low_ratio)"
+    - "-rank(ts_corr(close,volume,20))"
+    - "-rank(ts_mean(return_1d,5))"
+    - "ts_skew(return_1d,20)"
+    - "ts_kurt(return_1d,60)"
   
   # 遗传编程参数
-  gp_population_size: 100
-  gp_generations: 10
-  gp_top_n: 5
+  gp:
+    population_size: 100
+    generations: 15
+    top_n: 5
   
-  # 因子缓存
-  use_cache: true
-  cache_dir: ./factor_cache
+  # 深度网络参数
+  deep_alpha:
+    model_type: dnn  # 'dnn' / 'lstm' / 'transformer'
+    hidden_layers: [128, 64, 32]
+    num_output_factors: 10
+    epochs: 30
+    sequence_length: 20
 
+# 评估配置
 evaluation:
-  # 分组数量
   n_groups: 5
-  
-  # 训练集比例
   train_ratio: 0.8
-  
-  # 是否进行行业市值中性化
   neutralize: false
-  
-  # 下一期收益率列名
   forward_return_col: return_1d
 
+# 筛选配置
 filter:
-  # 最小训练集ICIR
   min_train_icir: 0.3
-  
-  # 最小测试集IC均值
   min_test_ic_mean: 0.01
-  
-  # 最小训练集多空夏普比率
   min_ls_sharpe_train: 0.5
 
+# 输出配置
 output:
-  # 结果输出目录
   results_dir: ./results
-  
-  # 生成图表的Top因子数量
   top_n_charts: 5
-  
-  # 是否保存详细结果
   save_full_results: true

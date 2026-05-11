@@ -98,6 +98,52 @@ def ts_rank(x: pd.Series, d: int) -> pd.Series:
     return x.groupby(level='code').apply(_ts_rank).droplevel(0)
 
 
+def ts_skew(x: pd.Series, d: int) -> pd.Series:
+    """d日滚动偏度 - 衡量分布不对称性"""
+    return x.groupby(level='code').rolling(window=d, min_periods=max(1, d//2)).skew().droplevel(0)
+
+
+def ts_kurt(x: pd.Series, d: int) -> pd.Series:
+    """d日滚动峰度 - 衡量分布尾部厚度"""
+    return x.groupby(level='code').rolling(window=d, min_periods=max(1, d//2)).kurt().droplevel(0)
+
+
+def residual(x: pd.Series, y: pd.Series, d: int) -> pd.Series:
+    """
+    滚动回归残差 - x ~ y，时序动态中性化
+    用于剔除基准影响，提取纯粹Alpha
+    """
+    df = pd.DataFrame({'x': x, 'y': y})
+    
+    def _calc_resid(g):
+        # 滚动窗口计算残差
+        def window_resid(window):
+            if len(window) < 3:
+                return np.nan
+            window_x = window[:, 0]
+            window_y = window[:, 1]
+            # 简单线性回归: x = a + b*y + e
+            A = np.vstack([np.ones(len(window_y)), window_y]).T
+            try:
+                coeff, _ = np.linalg.lstsq(A, window_x, rcond=None)[0:2]
+                resid = window_x[-1] - (coeff[0] + coeff[1] * window_y[-1])
+                return resid
+            except:
+                return np.nan
+        
+        values = g.values
+        # 滑动窗口处理
+        resids = np.full(len(g), np.nan)
+        for i in range(d-1, len(g)):
+            window = values[i-d+1:i+1]
+            resids[i] = window_resid(window)
+        
+        return pd.Series(resids, index=g.index)
+    
+    result = df.groupby(level='code').apply(_calc_resid)
+    return result.droplevel(0) if isinstance(result.index, pd.MultiIndex) else result
+
+
 # ============= 逻辑与条件算子 =============
 
 def if_else(cond: pd.Series, x: pd.Series, y: pd.Series) -> pd.Series:
@@ -173,6 +219,9 @@ OPERATORS = {
     'shift': shift,
     'ts_zscore': ts_zscore,
     'ts_rank': ts_rank,
+    'ts_skew': ts_skew,
+    'ts_kurt': ts_kurt,
+    'residual': residual,
     
     # 逻辑算子
     'if_else': if_else,

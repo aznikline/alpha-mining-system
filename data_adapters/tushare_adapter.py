@@ -1,6 +1,6 @@
 """
 Alpha因子挖掘系统 - Tushare数据源适配器
-专业金融数据源，数据质量高
+专业金融数据源，数据质量高，需token
 """
 import pandas as pd
 import numpy as np
@@ -14,6 +14,8 @@ class TushareAdapter(BaseDataAdapter):
     """Tushare数据源适配器"""
     
     name = "tushare"
+    priority = 1  # A股备选
+    market_support = ['a_share']
     
     def __init__(self, token: str = None):
         self.token = token
@@ -36,11 +38,12 @@ class TushareAdapter(BaseDataAdapter):
                 self._available = False
         return self._available
     
-    def get_daily_data(self,
-                      symbols: List[str],
-                      start_date: str,
-                      end_date: str,
-                      fields: Optional[List[str]] = None) -> pd.DataFrame:
+    def fetch(self,
+             market: str,
+             symbols: List[str],
+             start_date: str,
+             end_date: str,
+             fields: Optional[List[str]] = None) -> pd.DataFrame:
         """获取日线行情数据"""
         api = self._get_api()
         if api is None:
@@ -48,13 +51,13 @@ class TushareAdapter(BaseDataAdapter):
         
         all_data = []
         
-        if symbols == 'all_a' or symbols == ['all_a']:
+        if symbols == 'all' or symbols == ['all']:
             symbols = ['000001.SZ', '000002.SZ', '600000.SH', '600036.SH']
         
         for symbol in symbols:
             try:
                 std_code = standardize_code(symbol)
-                ts_code = std_code.replace('.SZ', '.SZ').replace('.SH', '.SH')
+                ts_code = std_code
                 
                 df = api.daily(
                     ts_code=ts_code,
@@ -65,19 +68,10 @@ class TushareAdapter(BaseDataAdapter):
                 if len(df) == 0:
                     continue
                 
-                # 重命名字段
-                df = df.rename(columns={
-                    'trade_date': 'date',
-                    'pct_chg': 'return_1d'
-                })
-                
+                df = df.rename(columns={'trade_date': 'date', 'pct_chg': 'return_1d'})
                 df['code'] = std_code
                 df['date'] = pd.to_datetime(df['date'])
                 df['return_1d'] = df['return_1d'] / 100
-                
-                # 计算vwap
-                if 'amount' in df.columns and 'vol' in df.columns:
-                    df['vwap'] = df['amount'] / (df['vol'] * 100).replace(0, np.nan)
                 
                 all_data.append(df)
                 
@@ -90,26 +84,9 @@ class TushareAdapter(BaseDataAdapter):
         result = pd.concat(all_data, ignore_index=True)
         return result
     
-    def get_industry_classification(self, symbols: List[str]) -> pd.DataFrame:
+    def get_industry_classification(self, market: str, symbols: List[str]) -> pd.DataFrame:
         """获取行业分类"""
-        api = self._get_api()
-        if api is None:
-            return pd.DataFrame([
-                {'code': standardize_code(s), 'group': 'unknown'}
-                for s in symbols
-            ])
-        
-        try:
-            industry_list = []
-            for symbol in symbols:
-                std_code = standardize_code(symbol)
-                industry_list.append({
-                    'code': std_code,
-                    'group': 'unknown'
-                })
-            return pd.DataFrame(industry_list)
-        except:
-            return pd.DataFrame([
-                {'code': standardize_code(s), 'group': 'unknown'}
-                for s in symbols
-            ])
+        return pd.DataFrame([
+            {'code': standardize_code(s), 'group': 'unknown'}
+            for s in symbols
+        ])

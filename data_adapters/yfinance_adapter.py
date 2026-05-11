@@ -1,19 +1,20 @@
 """
 Alpha因子挖掘系统 - YFinance数据源适配器
-美股等海外市场数据
+美股等海外市场数据，免费无需注册
 """
 import pandas as pd
 import numpy as np
 from typing import List, Optional
 
 from .base_adapter import BaseDataAdapter
-from utils import standardize_code
 
 
 class YFinanceAdapter(BaseDataAdapter):
-    """YFinance数据源适配器"""
+    """YFinance数据源适配器 - 美股专用"""
     
     name = "yfinance"
+    priority = 0  # 美股首选
+    market_support = ['us']  # 仅支持美股
     
     def __init__(self):
         self._available = None
@@ -27,18 +28,20 @@ class YFinanceAdapter(BaseDataAdapter):
                 self._available = False
         return self._available
     
-    def get_daily_data(self,
-                      symbols: List[str],
-                      start_date: str,
-                      end_date: str,
-                      fields: Optional[List[str]] = None) -> pd.DataFrame:
-        """获取日线行情数据"""
+    def fetch(self,
+             market: str,
+             symbols: List[str],
+             start_date: str,
+             end_date: str,
+             fields: Optional[List[str]] = None) -> pd.DataFrame:
+        """获取美股日线行情数据"""
         import yfinance as yf
         
         all_data = []
         
-        if symbols == 'all_a' or symbols == ['all_a']:
-            symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN']
+        if symbols == 'all' or symbols == ['all']:
+            # 简化：标普500成分股示例
+            symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'TSLA', 'JPM', 'V']
         
         for symbol in symbols:
             try:
@@ -49,28 +52,12 @@ class YFinanceAdapter(BaseDataAdapter):
                     continue
                 
                 df = df.reset_index()
+                df = df.rename(columns={'Date': 'date', 'Open': 'open', 'High': 'high',
+                                      'Low': 'low', 'Close': 'close', 'Volume': 'volume'})
                 
-                # 重命名字段
-                df = df.rename(columns={
-                    'Date': 'date',
-                    'Open': 'open',
-                    'High': 'high',
-                    'Low': 'low',
-                    'Close': 'close',
-                    'Volume': 'volume'
-                })
-                
-                df['code'] = symbol
-                df['date'] = pd.to_datetime(df['date']).dt.tz_localize(None)
-                df = df.sort_values('date')
+                df['code'] = f"{symbol}.US"
+                df['amount'] = df['close'] * df['volume']
                 df['return_1d'] = df['close'].pct_change()
-                
-                if 'amount' not in df.columns:
-                    df['amount'] = df['close'] * df['volume']
-                
-                # 计算vwap
-                if 'amount' in df.columns and 'volume' in df.columns:
-                    df['vwap'] = df['amount'] / df['volume'].replace(0, np.nan)
                 
                 all_data.append(df)
                 
@@ -83,8 +70,8 @@ class YFinanceAdapter(BaseDataAdapter):
         result = pd.concat(all_data, ignore_index=True)
         return result
     
-    def get_industry_classification(self, symbols: List[str]) -> pd.DataFrame:
-        """获取行业分类"""
+    def get_industry_classification(self, market: str, symbols: List[str]) -> pd.DataFrame:
+        """获取GICS行业分类"""
         import yfinance as yf
         
         result = []
@@ -94,12 +81,12 @@ class YFinanceAdapter(BaseDataAdapter):
                 info = ticker.info
                 industry = info.get('sector', 'unknown')
                 result.append({
-                    'code': symbol,
+                    'code': f"{symbol}.US",
                     'group': industry
                 })
             except:
                 result.append({
-                    'code': symbol,
+                    'code': f"{symbol}.US",
                     'group': 'unknown'
                 })
         

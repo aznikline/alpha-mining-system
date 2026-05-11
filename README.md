@@ -1,37 +1,125 @@
-# Alpha因子挖掘系统 v1.0
+# Alpha 因子挖掘系统 v2.1
 
-一个模块化、可扩展的自动化Alpha因子挖掘系统，参考WorldQuant和BigQuant的设计思想。
+一个模块化、可扩展的自动化 Alpha 因子挖掘平台，参考 WorldQuant / BigQuant 架构设计。
 
 ## 核心特性
 
-### 📊 统一数据抽象层
-- **多数据源支持**: Akshare（免费推荐）、Tushare（专业）、Baostock（稳定）、YFinance（美股）
-- **自动降级机制**: 首选数据源失败时自动尝试备用源
-- **本地Parquet缓存**: 重复使用无需重复下载，加速回测
-- **增量更新**: 自动检测缓存并拉取最新数据
-- **数据标准化**: 统一的字段命名、格式和前复权处理
+### 📊 数据层
+- **多数据源支持**：Akshare（免费A股）、Tushare（专业数据）、Baostock（稳定数据）、YFinance（美股）
+- **自动降级机制**：首选数据源失败时自动尝试备选
+- **多市场支持**：A股(`a_share`)、美股(`us`)自动路由
+- **Parquet本地缓存**：重复使用无需重复下载
+- **数据标准化**：统一字段命名、格式、复权处理
 
 ### 🔧 因子引擎
-- **表达式解析**: 支持字符串表达式直接计算，如 `rank(ts_mean(close, 20) / close)`
-- **内置算子库**: 截面算子（rank, zscore）、时序算子（ts_mean, ts_std, ts_corr）、逻辑算子
-- **批量并行计算**: 支持同时计算多个因子
-- **因子值缓存**: Joblib序列化缓存，避免重复计算
+- **三种因子生成模式**
+  - 手动表达式：类 WorldQuant 表达式语法
+  - 遗传编程：gplearn 自动进化有效因子
+  - DeepAlpha：DNN/LSTM 深度学习隐式因子
 
-### 📈 因子评估体系
-- **IC分析**: Pearson相关系数、Spearman秩相关系数
-- **ICIR计算**: 信息系数稳定性（均值/标准差）
-- **分层回测**: 5/10分组等权测试
-- **多空组合**: Top组-Bottom组绩效计算
-- **训练/测试集划分**: 按时间切分，避免未来函数
-- **行业市值中性化**: 可选回归残差中性化
-- **换手率计算**: 因子稳定性评估
+- **24个内置算子**
+  - 截面算子：`rank`, `zscore`, `demean`, `scale`
+  - 时序算子：`ts_mean`, `ts_std`, `ts_delta`, `ts_corr`, `ts_skew`, `ts_kurt`, `residual`
+  - 数学算子：`abs`, `sign`, `log`, `power`, `sqrt`, `add`, `sub`, `mul`, `div`
+  - 条件算子：`if_else`
 
-### 🎨 可视化报告
-- IC时间序列图（带±2σ通道）
+### 📈 因子评估
+- **IC分析**：Pearson / Spearman 双指标
+- **IC_IR稳定性**：IC 均值/标准差
+- **5-10分组回测**：分层年化收益对比
+- **多空组合绩效**：年化收益、夏普、最大回撤、卡玛比率
+- **换手率分析**：因子稳定性评估
+- **训练/测试集严格切分**：避免过拟合
+- **行业市值中性化**：可选
+
+### 🎨 可视化输出
+- IC 时间序列图（±2σ通道）
 - 多空净值曲线图
 - 分组累计收益对比图
 - 月度IC热力图
-- 因子整体对比汇总图表
+- 因子整体对比汇总图
+
+---
+
+## 快速开始
+
+### 安装依赖
+
+```bash
+pip install pandas numpy scipy matplotlib seaborn pyyaml joblib akshare
+pip install gplearn  # 可选：遗传编程模式
+pip install torch     # 可选：DeepAlpha 深度学习模式
+```
+
+### 运行
+
+```bash
+# 使用默认配置
+python main.py
+
+# 指定配置
+python main.py --config my_config.yaml
+
+# 强制重新计算（不使用缓存）
+python main.py --no-cache
+
+# 跳过图表生成
+python main.py --no-charts
+
+# 指定市场（覆盖配置文件）
+python main.py --market us
+```
+
+### 配置文件说明
+
+```yaml
+# 市场类型
+market: a_share  # 或 'us' 美股
+
+# 因子生成模式
+factor_generation:
+  mode: expression  # expression / gplearn / deep_alpha
+  
+  # 模式1：手动表达式因子
+  expressions:
+    - "rank(ts_mean(close,20)/close)"
+    - "-rank(ts_std(return_1d,20))"
+    - "ts_skew(return_1d,20)"  # 新增高阶算子
+  
+  # 模式2：遗传编程
+  gp:
+    population_size: 100
+    generations: 15
+    top_n: 5
+  
+  # 模式3：DeepAlpha 深度学习
+  deep_alpha:
+    model_type: dnn
+    hidden_layers: [128, 64, 32]
+    num_output_factors: 10
+
+# 评估配置
+evaluation:
+  n_groups: 5
+  train_ratio: 0.8
+  neutralize: false  # 行业市值中性化开关
+```
+
+---
+
+## 因子表达式参考
+
+| 表达式 | 因子含义 | 预期IC方向 |
+|--------|----------|------------|
+| `rank(ts_mean(close,20)/close)` | 价格偏离均线程度 | 负 |
+| `ts_delta(close,5)` | 5日动量 | 正/负 |
+| `-rank(ts_std(return_1d,20))` | 波动率反转 | 正 |
+| `ts_zscore(volume,10)*-1` | 成交量异常 | 正 |
+| `rank(close_vwap_diff)` | 价格与成交均价差 | 负 |
+| `ts_skew(return_1d,20)` | 收益率偏度 | 负 |
+| `residual(close, log_volume, 20)` | 成交量解释后的残差收益 | 正 |
+
+---
 
 ## 项目结构
 
@@ -40,185 +128,84 @@ alpha_mining/
 ├── main.py                  # 主程序入口
 ├── config.yaml              # 配置文件
 ├── requirements.txt         # 依赖列表
-├── data_hub.py             # 统一数据抽象层
-├── factor_engine.py        # 因子解析与计算引擎
-├── evaluator.py           # 因子评估器
-├── visualizer.py          # 结果可视化
-├── operators.py           # 算子库
-├── utils.py               # 工具函数
+├── README.md               # 本文档
 │
-├── data_adapters/         # 数据源适配器
-│   ├── __init__.py
+├── data_hub.py             # 统一数据抽象层（v2.1多市场）
+├── factor_engine.py        # 因子计算引擎（v2.1元信息系统）
+├── evaluator.py            # 因子评估器（v2.1中性化增强）
+├── visualizer.py           # 结果可视化模块
+├── operators.py            # 24个算子库（v2.1新增高阶算子）
+├── utils.py                # 工具函数
+│
+├── data_adapters/          # 数据源适配器（v2.1市场感知）
 │   ├── base_adapter.py
 │   ├── akshare_adapter.py
 │   ├── tushare_adapter.py
 │   ├── baostock_adapter.py
 │   └── yfinance_adapter.py
 │
-├── data_cache/            # 行情数据缓存（自动生成）
-├── factor_cache/          # 因子值缓存（自动生成）
-└── results/               # 结果输出（自动生成）
+├── data_cache/             # 行情数据缓存（自动生成）
+├── factor_cache/           # 因子值缓存（自动生成）
+└── results/                # 输出结果（自动生成）
 ```
 
-## 快速开始
+---
 
-### 1. 安装依赖
+## v2.1 版本升级要点
 
-```bash
-pip install -r requirements.txt
-```
+### 1. 因子元信息系统
+新增 `FactorResult` 类统一包装，每个因子携带完整溯源信息：
+- `name` / `category` / `source` - 唯一标识
+- `expression` / `data_version` / `generated_at` - 可复现
+- `custom_meta` - 自定义拓展字段
 
-### 2. 配置参数
-
-编辑 `config.yaml`:
-
-```yaml
-data:
-  preferred_source: akshare        # 首选数据源
-  start_date: "2020-01-01"        # 数据起始日期
-  end_date: "2024-12-31"          # 数据结束日期
-  symbols: all_a                    # 股票池
-
-factor:
-  expressions:                      # 因子表达式列表
-    - "rank(ts_delta(close, 5))"
-    - "rank(ts_mean(close, 20) / close)"
-    - "-rank(ts_std(return_1d, 20))"
-  use_genetic_programming: false    # 是否使用GP自动生成因子
-
-evaluation:
-  n_groups: 5                       # 分组数量
-  train_ratio: 0.8                 # 训练集比例
-  neutralize: false                # 是否中性化
-
-filter:
-  min_train_icir: 0.3              # 筛选阈值
-  min_test_ic_mean: 0.01
-  min_ls_sharpe_train: 0.5
-```
-
-### 3. 运行
-
-```bash
-# 完整运行（使用缓存）
-python main.py
-
-# 强制重新计算（不使用缓存）
-python main.py --no-cache
-
-# 不生成图表
-python main.py --no-charts
-
-# 指定配置文件
-python main.py --config my_config.yaml
-```
-
-## 算子参考
-
-### 截面算子（按日期分组计算）
-
+### 2. 新增高阶算子
 | 算子 | 说明 |
 |------|------|
-| `rank(x)` | 截面百分位排序 |
-| `zscore(x)` | 截面标准化 |
-| `demean(x)` | 截面去均值 |
-| `scale(x)` | 缩放绝对值和为1 |
+| `ts_skew(x, d)` | 滚动窗口偏度，捕捉不对称性 |
+| `ts_kurt(x, d)` | 滚动窗口峰度，捕捉厚尾 |
+| `residual(x, y, d)` | 滚动回归残差，x对y做中性化 |
 
-### 时序算子（按股票分组滚动计算）
+### 3. 多市场架构
+- `market` 参数：`a_share` 或 `us`
+- 适配器自动过滤，仅支持对应市场的数据源生效
+- A股默认优先级：Akshare > Tushare > Baostock
+- 美股默认：YFinance
 
-| 算子 | 说明 |
-|------|------|
-| `ts_mean(x, d)` | d日移动平均 |
-| `ts_std(x, d)` | d日移动标准差 |
-| `ts_min/ts_max(x, d)` | d日极值 |
-| `ts_delta(x, d)` | d日变化量 |
-| `ts_pct_change(x, d)` | d日变化率 |
-| `shift(x, d)` | 滞后d期 |
-| `ts_zscore(x, d)` | 滚动zscore |
-| `ts_corr(x, y, d)` | x与y的滚动相关系数 |
-| `ts_cov(x, y, d)` | x与y的滚动协方差 |
+### 4. 遗传编程因子
+- 使用 gplearn 符号回归自动发现因子
+- 自定义函数集，复用已有算子实现
+- 适应度函数：IC 值最大化
+- 输出 Top N 最优表达式
 
-### 数学与逻辑算子
+### 5. DeepAlpha 深度因子
+- 简化版 DNN 端到端因子生成
+- 支持自定义网络结构
+- 输出 N 个隐式因子向量
+- 完整训练流程可扩展
 
-`abs(x)`, `sign(x)`, `log(x)`, `power(x, a)`, `sqrt(x)`
-`add/sub/mul/div(x, y)`, `if_else(cond, x, y)`
+---
 
-## 因子表达式示例
+## 有效因子筛选标准
 
-```yaml
-# 动量因子
-"rank(ts_delta(close, 5))"
-"ts_zscore(return_1d, 20)"
+| 指标 | 最低阈值 | 优秀阈值 |
+|------|----------|----------|
+| 训练集 RankIC_IR | > 0.3 | > 0.5 |
+| 测试集 RankIC 均值 | > 0.01 | > 0.03 |
+| 多空夏普（训练） | > 0.5 | > 1.0 |
+| 方向一致性 | 训练/测试同号 | - |
+| 日换手率 | < 0.3 | < 0.15 |
 
-# 反转因子
-"-rank(ts_mean(return_1d, 5))"
-"-rank(ts_mean(return_1d, 20))"
+---
 
-# 波动率因子
-"-rank(ts_std(return_1d, 20))"
-"rank(high_low_ratio)"
+## 部署与集成
 
-# 成交量因子
-"rank(ts_zscore(log_volume, 20))"
-"-rank(ts_corr(close, log_volume, 20))"
+- GitHub: https://github.com/aznikline/alpha-mining-system
+- Vercel Serverless: API 模式支持
+- 本地Docker部署: `docker run -v ...`
 
-# 均线因子
-"rank(ts_mean(close, 10) / close)"
-"rank(ts_mean(close, 5)) - rank(ts_mean(close, 20))"
+---
 
-# 高低位置因子
-"rank((close - ts_min(low, 20)) / (ts_max(high, 20) - ts_min(low, 20) + 0.001))"
-```
-
-## 结果解读
-
-### 输出文件
-
-```
-results/
-├── factor_summary.png          # 因子总体对比图
-├── factor_XXX.png              # 单个因子详情图
-└── factor_results.csv          # 所有因子评估结果
-```
-
-### 关键指标
-
-| 指标 | 说明 | 优秀阈值 |
-|------|------|----------|
-| RankICIR_train | 训练集信息系数稳定性 | > 0.5 |
-| RankIC_mean_test | 测试集IC均值 | > 0.02，方向与训练集一致 |
-| 夏普比率_train | 多空组合夏普比率 | > 1.0 |
-| 年化收益率_train | 多空组合年化收益 | > 10% |
-| 最大回撤_train | 多空组合最大回撤 | < 20% |
-| 换手率 | 因子日换手率 | < 0.3 |
-
-## 扩展开发
-
-### 添加新的数据源适配器
-
-1. 继承 `BaseDataAdapter`
-2. 实现 `get_daily_data()` 和 `get_industry_classification()`
-3. 在 `data_hub.py` 的 `ADAPTER_MAP` 中注册
-
-### 添加新算子
-
-在 `operators.py` 中定义函数，然后加入 `OPERATORS` 字典即可。
-
-### 遗传编程扩展
-
-安装 `gplearn` 并在配置中启用 `use_genetic_programming: true`
-
-## 注意事项
-
-1. **回测存在过拟合风险**: 请务必检查样本外表现，不要过度优化参数
-2. **数据源限制**: 免费数据源可能有调用频率限制和数据质量问题
-3. **计算性能**: 全市场5年数据+100个因子计算约需5-10分钟
-4. **缓存管理**: 定期清理 `data_cache/` 和 `factor_cache/` 目录
-
-## 许可证
+## License
 
 MIT License
-
-## 贡献
-
-欢迎提交Issue和PR！

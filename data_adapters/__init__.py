@@ -11,3 +11,9 @@ __all__ = [
     'BaostockAdapter',
     'YFinanceAdapter',
 ]
+
+# 按市场分类的适配器
+MARKET_ADAPTERS = {
+    'a_share': [AkshareAdapter, TushareAdapter, BaostockAdapter],
+    'us': [YFinanceAdapter],
+}

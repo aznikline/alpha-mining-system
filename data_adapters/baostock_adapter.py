@@ -1,6 +1,6 @@
 """
 Alpha因子挖掘系统 - Baostock数据源适配器
-免费，数据稳定
+免费，数据稳定，覆盖A股
 """
 import pandas as pd
 import numpy as np
@@ -14,6 +14,8 @@ class BaostockAdapter(BaseDataAdapter):
     """Baostock数据源适配器"""
     
     name = "baostock"
+    priority = 2  # A股降级备选
+    market_support = ['a_share']
     
     def __init__(self):
         self._available = None
@@ -34,19 +36,20 @@ class BaostockAdapter(BaseDataAdapter):
                 self._available = False
         return self._available
     
-    def get_daily_data(self,
-                      symbols: List[str],
-                      start_date: str,
-                      end_date: str,
-                      fields: Optional[List[str]] = None) -> pd.DataFrame:
+    def fetch(self,
+             market: str,
+             symbols: List[str],
+             start_date: str,
+             end_date: str,
+             fields: Optional[List[str]] = None) -> pd.DataFrame:
         """获取日线行情数据"""
         import baostock as bs
         self._login()
         
         all_data = []
         
-        if symbols == 'all_a' or symbols == ['all_a']:
-            symbols = ['000001.SZ', '000002.SZ', '600000.SH', '600036.SH']
+        if symbols == 'all' or symbols == ['all']:
+            symbols = ['000001.SZ', '000002.SZ', '600000.SH']
         
         for symbol in symbols:
             try:
@@ -67,20 +70,12 @@ class BaostockAdapter(BaseDataAdapter):
                 if len(df) == 0:
                     continue
                 
-                # 类型转换
                 for col in ['open', 'high', 'low', 'close', 'volume', 'amount', 'turn']:
                     if col in df.columns:
                         df[col] = pd.to_numeric(df[col], errors='coerce')
                 
                 df['code'] = std_code
                 df['date'] = pd.to_datetime(df['date'])
-                df = df.sort_values('date')
-                df['return_1d'] = df['close'].pct_change()
-                
-                # 计算vwap
-                if 'amount' in df.columns and 'volume' in df.columns:
-                    df['vwap'] = df['amount'] / df['volume'].replace(0, np.nan)
-                
                 all_data.append(df)
                 
             except Exception as e:
@@ -92,7 +87,7 @@ class BaostockAdapter(BaseDataAdapter):
         result = pd.concat(all_data, ignore_index=True)
         return result
     
-    def get_industry_classification(self, symbols: List[str]) -> pd.DataFrame:
+    def get_industry_classification(self, market: str, symbols: List[str]) -> pd.DataFrame:
         """获取行业分类"""
         return pd.DataFrame([
             {'code': standardize_code(s), 'group': 'unknown'}
