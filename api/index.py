@@ -10,7 +10,7 @@ def handler(request):
         },
         "body": json.dumps({
             "name": "Alpha因子挖掘系统",
-            "version": "1.0.0",
+            "version": "3.0.0",
             "status": "API Service OK",
             "docs": "Alpha因子挖掘系统 - 一个模块化的自动化Alpha因子挖掘平台",
             "features": [
