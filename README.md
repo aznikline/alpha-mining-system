@@ -237,6 +237,15 @@ alpha-mining-system/
 
 ---
 
+## 相关项目
+
+本仓是量化系列的一部分，配套项目分工：
+
+- **[`alpha`](https://github.com/aznikline/alpha)** — OpenAlpha factor discovery → qmt 执行层的 integration bridge。alpha-mining-system 负责**挖掘**因子（遗传编程 / DeepAlpha），alpha 负责**桥接**到执行框架（`SignalAlphaFactor` adapter，含 116 个测试 + Protocol fallback 可独立运行）。
+- **qmt / ptrade** — 作者维护的量化执行层（私有）。alpha 的 bridge 以它们为 integration target；不公开以隔离交易逻辑。
+
+---
+
 ## License
 
 [MIT License](LICENSE) © 2026 aznikline
