@@ -9,6 +9,36 @@
 
 一个模块化、可扩展的自动化 Alpha 因子挖掘平台，参考 WorldQuant / BigQuant 架构设计。支持手动表达式、遗传编程、深度学习三种因子生成模式，覆盖数据加载 → 因子计算 → 有效性评估 → 可视化报告的完整研究工作流。
 
+```mermaid
+flowchart LR
+    subgraph Data["📊 数据层"]
+        AK[Akshare A股]
+        TS[Tushare]
+        BS[Baostock]
+        YF[YFinance 美股]
+    end
+    subgraph Engine["🔧 因子引擎"]
+        EX["表达式<br/>(WorldQuant 语法)"]
+        GP["遗传编程<br/>(gplearn)"]
+        DA["DeepAlpha<br/>(DNN/LSTM)"]
+    end
+    subgraph Eval["📈 评估"]
+        IC[IC/IC_IR]
+        BG[分层回测]
+        LS[多空绩效]
+    subgraph Viz["🎨 可视化"]
+        P1[IC 时序]
+        P2[净值曲线]
+        P3[分组收益]
+        P4[月度热力图]
+    end
+    Data --> Engine --> Eval --> Viz
+    style Engine fill:#1a1f2e,color:#7dd3fc
+    style Data fill:#14171d,color:#e6e9ef
+    style Eval fill:#14171d,color:#e6e9ef
+    style Viz fill:#14171d,color:#e6e9ef
+```
+
 ## 核心特性
 
 ### 📊 数据层

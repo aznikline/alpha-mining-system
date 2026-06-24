@@ -9,6 +9,36 @@
 
 A modular, extensible automated Alpha factor mining platform. Supports three factor generation modes — manual expression, genetic programming, and deep learning — covering the full research workflow: data loading → factor computation → validity evaluation → visualization reports.
 
+```mermaid
+flowchart LR
+    subgraph Data["📊 Data"]
+        AK[Akshare A-share]
+        TS[Tushare]
+        BS[Baostock]
+        YF[YFinance US]
+    end
+    subgraph Engine["🔧 Factor Engine"]
+        EX["Expression<br/>(WorldQuant syntax)"]
+        GP["Genetic Programming<br/>(gplearn)"]
+        DA["DeepAlpha<br/>(DNN/LSTM)"]
+    end
+    subgraph Eval["📈 Evaluation"]
+        IC[IC/IC_IR]
+        BG[Group backtest]
+        LS[Long-short perf]
+    subgraph Viz["🎨 Visualization"]
+        P1[IC series]
+        P2[Net value curve]
+        P3[Group returns]
+        P4[Monthly heatmap]
+    end
+    Data --> Engine --> Eval --> Viz
+    style Engine fill:#1a1f2e,color:#7dd3fc
+    style Data fill:#14171d,color:#e6e9ef
+    style Eval fill:#14171d,color:#e6e9ef
+    style Viz fill:#14171d,color:#e6e9ef
+```
+
 ## Core Features
 
 ### 📊 Data Layer
