@@ -3,6 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![Stars](https://img.shields.io/github/stars/aznikline/alpha-mining-system?style=social)](https://github.com/aznikline/alpha-mining-system)
+[![English](https://img.shields.io/badge/English-README_EN.md-blue.svg)](./README_EN.md)
 
 > A modular, extensible automated Alpha factor mining platform for A-share and US equity markets, inspired by WorldQuant / BigQuant.
 
