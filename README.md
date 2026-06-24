@@ -9,6 +9,20 @@
 
 一个模块化、可扩展的自动化 Alpha 因子挖掘平台，参考 WorldQuant / BigQuant 架构设计。支持手动表达式、遗传编程、深度学习三种因子生成模式，覆盖数据加载 → 因子计算 → 有效性评估 → 可视化报告的完整研究工作流。
 
+**24 个算子 · 3 种因子生成模式 · A 股 + 美股双市场 · CLI + Streamlit + Notebook 三入口**
+
+### 30 秒上手
+
+```python
+from alpha_mining import init_data, quick_evaluate
+
+# 一行加载数据（A 股 / 美股自动路由 + 标准化 + 衍生特征）
+data = init_data(market='a_share', start='2019-01-01', end='2024-12-31')
+
+# 一行评估因子：表达式 → IC/分层回测/多空绩效/图表
+result = quick_evaluate("rank(ts_mean(close,20)/close)", data, n_groups=5)
+```
+
 ```mermaid
 flowchart LR
     subgraph Data["📊 数据层"]

@@ -9,6 +9,20 @@
 
 A modular, extensible automated Alpha factor mining platform. Supports three factor generation modes — manual expression, genetic programming, and deep learning — covering the full research workflow: data loading → factor computation → validity evaluation → visualization reports.
 
+**24 operators · 3 factor generation modes · A-share + US markets · CLI + Streamlit + Notebook**
+
+### 30-second start
+
+```python
+from alpha_mining import init_data, quick_evaluate
+
+# One-liner data load (A-share / US auto-routing + normalization + derived features)
+data = init_data(market='a_share', start='2019-01-01', end='2024-12-31')
+
+# One-liner factor evaluation: expression -> IC / group backtest / long-short / charts
+result = quick_evaluate("rank(ts_mean(close,20)/close)", data, n_groups=5)
+```
+
 ```mermaid
 flowchart LR
     subgraph Data["📊 Data"]
