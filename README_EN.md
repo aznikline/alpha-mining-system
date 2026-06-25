@@ -40,6 +40,7 @@ flowchart LR
         IC[IC/IC_IR]
         BG[Group backtest]
         LS[Long-short perf]
+    end
     subgraph Viz["🎨 Visualization"]
         P1[IC series]
         P2[Net value curve]

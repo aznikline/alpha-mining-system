@@ -40,6 +40,7 @@ flowchart LR
         IC[IC/IC_IR]
         BG[分层回测]
         LS[多空绩效]
+    end
     subgraph Viz["🎨 可视化"]
         P1[IC 时序]
         P2[净值曲线]
