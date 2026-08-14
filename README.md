@@ -1,3 +1,5 @@
+
+
 # Alpha 因子挖掘系统
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -183,6 +185,8 @@ factor_generation:
     model_type: dnn         # dnn / lstm / transformer
     hidden_layers: [128, 64, 32]
     num_output_factors: 10
+    epochs: 50
+    sequence_length: 20
 
 evaluation:
   n_groups: 5
